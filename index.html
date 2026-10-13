@@ -2876,43 +2876,47 @@ try{
   });
   scene.add(new THREE.Mesh(geo,mat));
   const mouse={x:0,y:0};let ripples=[],wakeTrails=[];
-  let trailAnchor=null,lastTrail=0;
+  let trailAnchor=null,lastTrail=0,activePress=null;
   const toWorld=(cx,cy)=>[(cx/innerWidth*2-1)*halfW(),-(cy/innerHeight*2-1)*halfH];
   function addClickRipple(x,y){
     const t=clock.getElapsedTime();
     ripples.push({x,y,t,s:1.6});
     if(ripples.length>30)ripples.shift();
   }
-  function addWakeTrail(x,y){
+  function addWakeTrail(x,y,force=false){
     const t=clock.getElapsedTime();
     if(!trailAnchor){trailAnchor={x,y};return;}
     const dx=x-trailAnchor.x,dy=y-trailAnchor.y,dist=Math.hypot(dx,dy);
     const minStep=isMobile?1.8:1.25;
-    if(dist<minStep||t-lastTrail<.13)return;
+    if(dist<.22||((dist<minStep||t-lastTrail<.13)&&!force))return;
     wakeTrails.push({x1:trailAnchor.x,y1:trailAnchor.y,dx,dy,len2:dx*dx+dy*dy,t,s:Math.min(Math.max(dist*.18,.5),.9)});
     if(wakeTrails.length>18)wakeTrails.shift();
     trailAnchor={x,y};lastTrail=t;
   }
   function movePointer(cx,cy){
     [mouse.x,mouse.y]=toWorld(cx,cy);
+    if(activePress&&Math.hypot(cx-activePress.clientX,cy-activePress.clientY)>(isMobile?12:7))activePress.dragged=true;
     addWakeTrail(mouse.x,mouse.y);
+  }
+  function pressPointer(e){
+    [mouse.x,mouse.y]=toWorld(e.clientX,e.clientY);
+    activePress={clientX:e.clientX,clientY:e.clientY,x:mouse.x,y:mouse.y,dragged:false};
+    trailAnchor={x:mouse.x,y:mouse.y};lastTrail=clock.getElapsedTime();
+  }
+  function releasePointer(e){
+    if(!activePress)return;
+    [mouse.x,mouse.y]=toWorld(e.clientX,e.clientY);
+    if(activePress.dragged)addWakeTrail(mouse.x,mouse.y,true);
+    else addClickRipple(activePress.x,activePress.y);
+    activePress=null;
   }
   addEventListener("mousemove",e=>movePointer(e.clientX,e.clientY),{passive:true});
   addEventListener("touchmove",e=>{if(e.touches[0])movePointer(e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
-  addEventListener("touchstart",e=>{
-    if(!e.touches[0])return;
-    [mouse.x,mouse.y]=toWorld(e.touches[0].clientX,e.touches[0].clientY);
-    trailAnchor={x:mouse.x,y:mouse.y};lastTrail=clock.getElapsedTime();
-    addClickRipple(mouse.x,mouse.y);
-  },{passive:true});
-  addEventListener("pointerdown",e=>{
-    if(e.pointerType==="touch"||e.button!==0)return;
-    [mouse.x,mouse.y]=toWorld(e.clientX,e.clientY);
-    trailAnchor={x:mouse.x,y:mouse.y};lastTrail=clock.getElapsedTime();
-    addClickRipple(mouse.x,mouse.y);
-  },{passive:true});
+  addEventListener("pointerdown",e=>{if(e.pointerType!=="touch"&&e.button!==0)return;pressPointer(e);},{passive:true});
+  addEventListener("pointerup",releasePointer,{passive:true});
+  addEventListener("pointercancel",()=>{activePress=null;},{passive:true});
 
-    const clock=new THREE.Clock();
+  const clock=new THREE.Clock();
   let waterStopped=false,firstFrame=false;
   function stopWater(error){if(waterStopped)return;waterStopped=true;if(window.__activateWaterFallback)window.__activateWaterFallback(error);else{photoLayer.style.visibility="visible";canvas.style.display="none";}}
   function animate(){
