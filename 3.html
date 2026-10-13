@@ -822,8 +822,8 @@ body{color:var(--w80);}
 .qr-name{color:var(--ink)}
 .toast{background:rgba(24,49,57,.94);border-color:rgba(255,255,255,.18);color:#f5f4ec}
 
-/* 加载进度浮在背景之上，首开也能立刻看到背景图 */
-.loader{background:transparent;color:var(--ink)}
+/* 加载屏：宣纸 + 墨线 */
+.loader{background:#edf0e9;color:var(--ink)}
 .loader-bar{background:rgba(24,59,68,.12)}
 .loader-bar i{background:linear-gradient(90deg,var(--ink-soft),var(--ink))}
 
@@ -2772,41 +2772,12 @@ section, .section, .hero3d, main, .footer {
     window.addEventListener('pointerup',function(){last=null;},{passive:true});
     window.addEventListener('blur',function(){last=null;},{passive:true});
     window.addEventListener('resize',resize,{passive:true});resize();
-      function draw(now){
-        ctx.clearRect(0,0,w,h);
-        ctx.save();ctx.globalCompositeOperation='screen';
-        for(var band=0;band<7;band++){
-          ctx.beginPath();
-          for(var x=-20;x<=w+20;x+=30){
-            var y=h*(.18+band*.105)+Math.sin(x*.012+now*.00055+band*.8)*7+Math.sin(x*.027-now*.00032+band)*2.5;
-            if(x===-20)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-          }
-          ctx.strokeStyle='rgba(89,190,244,.13)';ctx.lineWidth=1;ctx.stroke();
-        }
-        ctx.restore();
-        ripples=ripples.filter(function(r){return now-r.t<1700;});
-        ripples.forEach(function(r){
-          var age=(now-r.t)/1000,fade=Math.max(0,1-age/1.7),radius=age*190*r.strength;
-          for(var ring=0;ring<3;ring++){
-            var rr=radius-ring*13;if(rr<=0)continue;
-            ctx.beginPath();ctx.arc(r.x,r.y,rr,0,Math.PI*2);
-            ctx.strokeStyle='rgba(92,205,255,'+(fade*(0.72-ring*0.16))+')';
-            ctx.lineWidth=ring===0?2.5:1.5;
-            ctx.shadowColor='rgba(71,190,255,'+(fade*.9)+')';ctx.shadowBlur=14*fade;ctx.stroke();
-          }
-        });
-        ctx.shadowBlur=0;requestAnimationFrame(draw);
-      }
+    function draw(now){ctx.clearRect(0,0,w,h);ripples=ripples.filter(function(r){return now-r.t<1700;});ripples.forEach(function(r){var age=(now-r.t)/1000,fade=Math.max(0,1-age/1.7),radius=age*190*r.strength;for(var ring=0;ring<3;ring++){var rr=radius-ring*13;if(rr<=0)continue;ctx.beginPath();ctx.arc(r.x,r.y,rr,0,Math.PI*2);ctx.strokeStyle='rgba(231,249,255,'+(fade*(0.54-ring*0.12))+')';ctx.lineWidth=ring===0?2.2:1.25;ctx.shadowColor='rgba(144,215,255,'+(fade*.8)+')';ctx.shadowBlur=12*fade;ctx.stroke();}});ctx.shadowBlur=0;requestAnimationFrame(draw);}
     requestAnimationFrame(draw);
   };
 })();
 </script>
 <script type="module">
-const mobileWaterMode=matchMedia('(max-width: 767px), (pointer: coarse)').matches;
-if(mobileWaterMode){
-  /* 手机直接显示背景并启用轻量 2D 水波，避免首开等待大型 WebGL 模块 */
-  window.__activateWaterFallback();
-}else{
 try{
   let THREE;
   try{THREE=await import("./three.module.js");}
@@ -2948,7 +2919,6 @@ try{
     if(canvas)canvas.style.display="none";
   }
 }
-}
 </script>
 <style id="replica-water-layer">
 /* 3D 失败时保留背景，并用轻量 Canvas 绘制可交互涟漪 */
@@ -2956,7 +2926,7 @@ try{
 /* 背景图成为水面纹理；波纹画布与正文分层 */
 #water{
   z-index:1;
-  background:transparent;
+  background:radial-gradient(ellipse at 50% 30%,#ffffff 0%,#ffffff 100%);
 }
 .ink-scene{z-index:0;visibility:visible;}
 .hero3d,.section,.footer{position:relative;z-index:4;}
