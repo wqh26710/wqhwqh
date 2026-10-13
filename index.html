@@ -2875,28 +2875,62 @@ try{
     envMapIntensity:1.6,
   });
   scene.add(new THREE.Mesh(geo,mat));
-  const mouse={x:0,y:0},last={x:0,y:0};let ripples=[];
+  const mouse={x:0,y:0};let ripples=[],wakeTrails=[];
+  let trailAnchor=null,lastTrail=0;
   const toWorld=(cx,cy)=>[(cx/innerWidth*2-1)*halfW(),-(cy/innerHeight*2-1)*halfH];
-  addEventListener("mousemove",e=>{[mouse.x,mouse.y]=toWorld(e.clientX,e.clientY)},{passive:true});
-  addEventListener("touchmove",e=>{if(e.touches[0])[mouse.x,mouse.y]=toWorld(e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
-  addEventListener("touchstart",e=>{if(e.touches[0])[mouse.x,mouse.y]=toWorld(e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
-  addEventListener("pointerdown",e=>{if(e.pointerType==="touch"||e.button!==0)return;[mouse.x,mouse.y]=toWorld(e.clientX,e.clientY);last.x=mouse.x;last.y=mouse.y;const t=clock.getElapsedTime();ripples.push({x:mouse.x,y:mouse.y,t,s:1.6});if(ripples.length>30)ripples.shift();},{passive:true});
+  function addClickRipple(x,y){
+    const t=clock.getElapsedTime();
+    ripples.push({x,y,t,s:1.6});
+    if(ripples.length>30)ripples.shift();
+  }
+  function addWakeTrail(x,y){
+    const t=clock.getElapsedTime();
+    if(!trailAnchor){trailAnchor={x,y};return;}
+    const dx=x-trailAnchor.x,dy=y-trailAnchor.y,dist=Math.hypot(dx,dy);
+    const minStep=isMobile?1.8:1.25;
+    if(dist<minStep||t-lastTrail<.13)return;
+    wakeTrails.push({x1:trailAnchor.x,y1:trailAnchor.y,dx,dy,len2:dx*dx+dy*dy,t,s:Math.min(Math.max(dist*.18,.5),.9)});
+    if(wakeTrails.length>18)wakeTrails.shift();
+    trailAnchor={x,y};lastTrail=t;
+  }
+  function movePointer(cx,cy){
+    [mouse.x,mouse.y]=toWorld(cx,cy);
+    addWakeTrail(mouse.x,mouse.y);
+  }
+  addEventListener("mousemove",e=>movePointer(e.clientX,e.clientY),{passive:true});
+  addEventListener("touchmove",e=>{if(e.touches[0])movePointer(e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
+  addEventListener("touchstart",e=>{
+    if(!e.touches[0])return;
+    [mouse.x,mouse.y]=toWorld(e.touches[0].clientX,e.touches[0].clientY);
+    trailAnchor={x:mouse.x,y:mouse.y};lastTrail=clock.getElapsedTime();
+    addClickRipple(mouse.x,mouse.y);
+  },{passive:true});
+  addEventListener("pointerdown",e=>{
+    if(e.pointerType==="touch"||e.button!==0)return;
+    [mouse.x,mouse.y]=toWorld(e.clientX,e.clientY);
+    trailAnchor={x:mouse.x,y:mouse.y};lastTrail=clock.getElapsedTime();
+    addClickRipple(mouse.x,mouse.y);
+  },{passive:true});
 
-  const clock=new THREE.Clock();
+    const clock=new THREE.Clock();
   let waterStopped=false,firstFrame=false;
   function stopWater(error){if(waterStopped)return;waterStopped=true;if(window.__activateWaterFallback)window.__activateWaterFallback(error);else{photoLayer.style.visibility="visible";canvas.style.display="none";}}
   function animate(){
     if(waterStopped)return;
     try{
       const t=clock.getElapsedTime();
-      const spd=Math.hypot(mouse.x-last.x,mouse.y-last.y);
-      const lastDrop=ripples.length?ripples[ripples.length-1].t:0;
-      if(spd>.07&&t-lastDrop>.05){ripples.push({x:mouse.x,y:mouse.y,t,s:Math.min(Math.max(spd*.6,.45),2)});if(ripples.length>30)ripples.shift();}
-      last.x=mouse.x;last.y=mouse.y;ripples=ripples.filter(r=>t-r.t<3);
+      ripples=ripples.filter(r=>t-r.t<3);
+      wakeTrails=wakeTrails.filter(w=>t-w.t<1.25);
       for(let i=0;i<pos.count;i++){
         const x=pos.getX(i),y=pos.getY(i);
         let z=Math.sin(x*.1+t*.5)*1.6+Math.cos(y*.15+t*.7)*1.6+Math.sin(x*.28-t*.8)*.3+Math.cos(y*.22+t*.6)*.3;
         for(const r of ripples){const age=t-r.t,front=age*15,dx=x-r.x,dy=y-r.y,dist=Math.hypot(dx,dy),off=dist-front;if(dist<front+10)z+=Math.cos(off*1.2)*Math.exp(-Math.abs(off)*.15)*Math.max(0,1-age/3)*r.s*(isMobile?2.4:2.9);}
+        for(const w of wakeTrails){
+          const age=t-w.t,front=age*6;
+          const along=Math.max(0,Math.min(1,((x-w.x1)*w.dx+(y-w.y1)*w.dy)/w.len2));
+          const dx=x-(w.x1+w.dx*along),dy=y-(w.y1+w.dy*along),dist=Math.hypot(dx,dy),off=dist-front;
+          if(dist<front+3.2)z+=Math.cos(off*1.45)*Math.exp(-Math.abs(off)*.3)*Math.max(0,1-age/1.25)*w.s*1.5;
+        }
         const dc=Math.hypot(x-mouse.x,y-mouse.y);if(dc<4)z-=(1-dc/4);pos.setZ(i,z);
       }
       pos.needsUpdate=true;geo.computeVertexNormals();renderer.render(scene,cam);
